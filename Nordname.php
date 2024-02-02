@@ -9,6 +9,7 @@ class Registrar_Adapter_Nordname extends Registrar_AdapterAbstract
     public $config = array(
         'apikey' => null,
     );
+    
     public function __construct($options)
     {
         if (!extension_loaded('curl')) {
@@ -21,6 +22,12 @@ class Registrar_Adapter_Nordname extends Registrar_AdapterAbstract
             throw new Registrar_Exception('Domain registrar "NordName" is not configured properly. Please update configuration parameter "NordName Apikey" at "Configuration -> Domain registration".');
         }
     }
+    
+    public function getTlds()
+    {
+        return [];
+    }
+    
     public static function getConfig()
     {
         return array(
@@ -33,16 +40,14 @@ class Registrar_Adapter_Nordname extends Registrar_AdapterAbstract
                 ),
                 ),
         ),
-		);
-    }
-
-    public function getTlds()
-    {
-        return array(
-            '.com', '.net', '.org', '.pw', '.eu', '.info', '.me', '.biz', '.club', 
-	    '.xyz', '.site', '.design', '.pro', '.cc', '.work', '.io', '.ltd', '.guru', 
-	    '.city', '.es', '.in', '.ws', '.media', '.de', '.online'
         );
+    }
+    
+    public function isDomaincanBeTransferred(Registrar_Domain $domain)
+    {
+        $this->getLog()->debug('Checking if domain can be transferred: ' . $domain->getName());
+
+        return true;
     }
 
     /**
@@ -57,7 +62,7 @@ class Registrar_Adapter_Nordname extends Registrar_AdapterAbstract
         );
 
         $result = $this->_request('checkRegistrationAvailability', $params);
-        $status = $result["reply"][$domain->getName()]["status"];
+        $status = $result[$domain->getName()]["avail"];
         return ($status == "available");
     }
 
@@ -85,39 +90,6 @@ class Registrar_Adapter_Nordname extends Registrar_AdapterAbstract
             $params["nameservers"] = $nsString;
 
         $this->_request('changeNameservers', $params);
-
-        return true;
-    }
-
-    /**
-     * @param Registrar_Domain $domain
-     * @return bool
-     * @throws Registrar_Exception
-     */
-    public function modifyContact(Registrar_Domain $domain)
-    {
-        $c = $domain->getContactRegistrar();
-
-        $params = array(
-            'domain' => $domain->getName(),
-            'firstname' => $c->getFirstName(),
-            'lastname' => $c->getLastName(),
-            'address1' => $c->getAddress1(),
-            'city' => $c->getCity(),
-            'state' => $c->getState(),
-            'zip' => $c->getZip(),
-            'country' => $c->getCountry(),
-            'email' => $c->getEmail(),
-            'phone' => '+' . $c->getTelCc() . '.' . $c->getTel(),
-        );
-        
-        if (!empty($c->getCompany()))
-            $params["company"] = ($c->getCompany());
-        
-        if (!empty($c->getAddress2()))
-            $params["address2"] = ($c->getAddress2());
-
-        $this->_request('changeRegistrantInformation', $params);
 
         return true;
     }
@@ -300,25 +272,37 @@ class Registrar_Adapter_Nordname extends Registrar_AdapterAbstract
         $this->_request('renewDomain', $params);
         return true;
     }
-
+    
     /**
      * @param Registrar_Domain $domain
      * @return bool
      * @throws Registrar_Exception
      */
-    public function togglePrivacyProtection(Registrar_Domain $domain)
+    public function modifyContact(Registrar_Domain $domain)
     {
-        $result = $this->_request('getDomainInfo', $params);
-        $privacy = 0;
-        if ((string) $result["reply"]["privacy"] == 0)
-            $privacy = 1;
-            
+        $c = $domain->getContactRegistrar();
+
         $params = array(
             'domain' => $domain->getName(),
-            'privacy' => $privacy,
+            'firstname' => $c->getFirstName(),
+            'lastname' => $c->getLastName(),
+            'address1' => $c->getAddress1(),
+            'city' => $c->getCity(),
+            'state' => $c->getState(),
+            'zip' => $c->getZip(),
+            'country' => $c->getCountry(),
+            'email' => $c->getEmail(),
+            'phone' => '+' . $c->getTelCc() . '.' . $c->getTel(),
         );
+        
+        if (!empty($c->getCompany()))
+            $params["company"] = ($c->getCompany());
+        
+        if (!empty($c->getAddress2()))
+            $params["address2"] = ($c->getAddress2());
 
-        $this->_request("changePrivacy", $params);
+        $this->_request('changeRegistrantInformation', $params);
+
         return true;
     }
 
@@ -433,7 +417,6 @@ class Registrar_Adapter_Nordname extends Registrar_AdapterAbstract
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
         curl_setopt($ch, CURLOPT_TIMEOUT, 360);
 
-
         $result = curl_exec($ch);
 
         if ($result === false) {
@@ -453,7 +436,7 @@ class Registrar_Adapter_Nordname extends Registrar_AdapterAbstract
         }
 
         if ($json["code"] != 300 && $json["code"] != 302)
-            throw new Registrar_Exception($json["desc"]);
+           // throw new Registrar_Exception($json["desc"]);
 
         return $json;
     }
@@ -469,7 +452,7 @@ class Registrar_Adapter_Nordname extends Registrar_AdapterAbstract
     private function _getApiUrl()
     {
         if ($this->isTestEnv())
-            return 'https://c-soft.net/sandbox_api/v1/domain/';
-        return 'https://c-soft.net/api/v1/domain/';
+            return 'https://sandbox-api.c-soft.net/api/v1.2/domain/';
+        return 'https://api.c-soft.net/api/v1.2/domain/';
     }
 }
